@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-subnet-router
+  namespace: tailscale
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailscale-subnet-router
+  template:
+    metadata:
+      labels:
+        app: tailscale-subnet-router
+    spec:
+      containers:
+        - name: tailscale
+          image: tailscale/tailscale:latest
+          imagePullPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: auth-key
+            - name: TS_USERSPACE
+              value: "false"
+          command: ["/bin/sh"]
+          args: ["/config/startup.sh"]
+          volumeMounts:
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+            - name: tailscale-run
+              mountPath: /var/run/tailscale
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'tailscale status 2>/dev/null'
+            periodSeconds: 120
+            failureThreshold: 2
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'tailscale status 2>/dev/null'
+            periodSeconds: 15
+            failureThreshold: 1
+      volumes:
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+        - name: tailscale-state
+          persistentVolumeClaim:
+            claimName: tailscale-state-pvc
+        - name: config
+          configMap:
+            name: tailscale-config
+            defaultMode: 0755
+        - name: tailscale-run
+          emptyDir: {}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet

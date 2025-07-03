@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  headscale:
+    image: headscale/headscale:stable
+    container_name: headscale
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./config:/etc/headscale:Z
+      - ./data:/var/lib/headscale:Z
+    environment:
+      - TZ=America/Denver
+    command: serve
+    networks:
+      - headscale-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - headscale
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./logs:/var/log/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=vpn.batk.me
+    networks:
+      - headscale-net
+
+networks:
+  headscale-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

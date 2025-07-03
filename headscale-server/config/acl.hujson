@@ -1,0 +1,52 @@
+{
+  // Define groups
+  "groups": {
+    "group:cluster": [""],
+    "group:admins": [""],
+    "group:guests": []
+  },
+  // Define tags for different node types
+  "tagOwners": {
+    "tag:cluster": ["group:cluster"],
+    "tag:admin": ["group:admins"],
+    "tag:guest": ["group:guests"]
+  },
+  // ACL rules
+  "acls": [
+    // Cluster group: broadcast entire 10.0.3.x subnet
+    {
+      "action": "accept",
+      "src": ["group:cluster"],
+      "dst": ["*:*"]  // Full access
+    },
+    // Admins: access to entire 10.0.3.x subnet
+    {
+      "action": "accept",
+      "src": ["group:admins"],
+      "dst": ["10.0.3.0/24:*"]  // Full subnet access
+    },
+    // Guests: limited access to specific subnet range
+    {
+      "action": "accept",
+      "src": ["group:guests"],
+      "dst": ["10.0.3.100/28:80,443,22"]
+    },
+    // Allow traffic to flow back from the subnet to VPN clients
+    {
+      "action": "accept",
+      "src": ["10.0.3.0/24"],
+      "dst": ["group:admins:*"]
+    },
+    {
+      "action": "accept",
+      "src": ["10.0.3.100/28"],
+      "dst": ["group:guests:*"]
+    }
+  ],
+  // Subnet routes - cluster nodes advertise the local subnet
+  "autoApprovers": {
+    "routes": {
+      "10.0.3.0/24": ["group:cluster"]
+    }
+  }
+}
