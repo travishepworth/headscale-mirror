@@ -4,58 +4,12 @@ kind: ConfigMap
 metadata:
   name: tailscale-config
 data:
-  startup.sh: |
-    #!/bin/bash
-
-    echo "Starting tailscaled daemon..."
-    tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock &
-    TAILSCALED_PID=$!
-
-    # Wait for tailscaled to be ready (just check if it responds to status command)
-    echo "Waiting for tailscaled to start..."
-    i=0
-    while [ $i -lt 30 ]; do
-        # Check if tailscale command responds (even if it returns "NeedsLogin")
-
-        echo "Checking tailscaled status..."
-        status_output=$(tailscale status 2>&1)
-        echo "DEBUG: tailscale status output: $status_output"
-        if echo "$status_output" | grep -qE "(Running|Stopped|NeedsLogin|Logged out|cluster-entry)"; then
-            echo "tailscaled is ready"
-            break
-        fi
-        i=$((i + 1))
-        if [ $i -eq 30 ]; then
-            echo "tailscaled failed to start within 30 seconds"
-            exit 1
-        fi
-        sleep 1
-    done
-
-    # Check if already authenticated and running
-    if tailscale status 2>/dev/null; then
-        echo "Already connected to Tailscale, skipping authentication"
-    else
-        echo "Not connected, authenticating with one-time key"
-        if [ -z "$TS_AUTHKEY" ]; then
-            echo "ERROR: TS_AUTHKEY not found in secret"
-            exit 1
-        fi
-        tailscale up --authkey="$TS_AUTHKEY" \
-                     --login-server=https://vpn.batk.me \
-                     --advertise-routes=10.0.3.0/24 \
-                     --accept-routes \
-                     --hostname=k8s-subnet-router
-    fi
-
-    # Monitor connection and restart if lost
-    while true; do
-        if ! tailscale status 2>/dev/null; then
-            echo "Connection lost, attempting to reconnect..."
-            tailscale up --advertise-routes=10.0.3.0/24 \
-                         --login-server=https://vpn.batk.me \
-                         --accept-routes \
-                         --hostname=k8s-subnet-router
-        fi
-        sleep 30
-    done
+  # Environment variables for Tailscale
+  TS_USERSPACE: "false"
+  TS_ROUTES: "10.0.3.0/24"
+  TS_ACCEPT_DNS: "true"
+  TS_AUTH_ONCE: "true"
+  TS_HOSTNAME: "k8s-subnet-router"
+  TS_EXTRA_ARGS: "--login-server=https://vpn.batk.me"
+  TS_KUBE_SECRET: "tailscale-auth"
+  SA_NAME: "tailscale-sa"

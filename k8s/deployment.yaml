@@ -13,6 +13,7 @@ spec:
       labels:
         app: tailscale-subnet-router
     spec:
+      serviceAccountName: tailscale-sa
       containers:
         - name: tailscale
           image: tailscale/tailscale:latest
@@ -26,20 +27,13 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: tailscale-auth
-                  key: auth-key
-            - name: TS_USERSPACE
-              value: "false"
-          command: ["/bin/sh"]
-          args: ["/config/startup.sh"]
+                  key: AuthKey
+          envFrom:
+            - configMapRef:
+                name: tailscale-config
           volumeMounts:
             - name: dev-net-tun
               mountPath: /dev/net/tun
-            - name: tailscale-state
-              mountPath: /var/lib/tailscale
-            - name: tailscale-run
-              mountPath: /var/run/tailscale
-            - name: config
-              mountPath: /config
           resources:
             requests:
               memory: "64Mi"
@@ -53,7 +47,8 @@ spec:
                 - /bin/sh
                 - -c
                 - 'tailscale status 2>/dev/null'
-            periodSeconds: 120
+            initialDelaySeconds: 30
+            periodSeconds: 30
             failureThreshold: 2
           readinessProbe:
             exec:
@@ -61,20 +56,12 @@ spec:
                 - /bin/sh
                 - -c
                 - 'tailscale status 2>/dev/null'
-            periodSeconds: 15
-            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            failureThreshold: 3
       volumes:
         - name: dev-net-tun
           hostPath:
             path: /dev/net/tun
-        - name: tailscale-state
-          persistentVolumeClaim:
-            claimName: tailscale-state-pvc
-        - name: config
-          configMap:
-            name: tailscale-config
-            defaultMode: 0755
-        - name: tailscale-run
-          emptyDir: {}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
