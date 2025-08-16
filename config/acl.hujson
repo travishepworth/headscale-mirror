@@ -1,15 +1,30 @@
 {
   // Define groups
   "groups": {
-    "group:cluster": [""],
-    "group:admins": [""],
-    "group:guests": []
+    "group:cluster": ["cluster-entry@headscale.local"],
+    "group:admins": [
+	"travis@headscale.local",
+	"travis-phone@headscale.local",
+	"ben@headscale.local",
+	"ben-phone@headscale.local",
+	],
+    "group:guests": [],
+    "group:web": [
+	"kinsey-phone@headscale.local"
+	],
+    "group:minecraft": [
+	"jaden@headscale.local",
+	"aiden@headscale.local",
+	"devin@headscale.local"
+	]
   },
   // Define tags for different node types
   "tagOwners": {
     "tag:cluster": ["group:cluster"],
     "tag:admin": ["group:admins"],
-    "tag:guest": ["group:guests"]
+    "tag:web": ["group:web"],
+    "tag:guest": ["group:guests"],
+    "tag:minecraft": ["group:minecraft"]
   },
   // ACL rules
   "acls": [
@@ -25,11 +40,20 @@
       "src": ["group:admins"],
       "dst": ["10.0.3.0/24:*"]  // Full subnet access
     },
-    // Guests: limited access to specific subnet range
+    {
+      "action": "accept",
+      "src": ["group:web"],
+      "dst": ["10.0.3.52:443"]
+    },
     {
       "action": "accept",
       "src": ["group:guests"],
       "dst": ["10.0.3.100/28:80,443,22"]
+    },
+    {
+      "action": "accept",
+      "src": ["group:minecraft"],
+      "dst": ["10.0.3.120:25565,80,443,8000"]
     },
     // Allow traffic to flow back from the subnet to VPN clients
     {
@@ -39,8 +63,18 @@
     },
     {
       "action": "accept",
+      "src": ["10.0.3.52"],
+      "dst": ["group:web:*"]
+    },
+    {
+      "action": "accept",
       "src": ["10.0.3.100/28"],
       "dst": ["group:guests:*"]
+    },
+    {
+      "action": "accept",
+      "src": ["10.0.3.120"],
+      "dst": ["group:minecraft:*"]
     }
   ],
   // Subnet routes - cluster nodes advertise the local subnet
