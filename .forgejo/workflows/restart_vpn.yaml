@@ -1,0 +1,67 @@
+# .forgejo/workflows/restart_vpn.yml
+name: Restart tailscale
+
+"on":
+  workflow_dispatch:
+    inputs:
+      kube_context:
+        description: "kubectl context to use"
+        required: false
+        default: "headscale"
+      namespace:
+        description: "Kubernetes namespace (leave blank to use current)"
+        required: false
+        default: ""
+      deployment:
+        description: "Deployment name to restart"
+        required: true
+        default: "tailscale-subnet-router"
+
+permissions: {}
+
+jobs:
+  restart-vpn:
+    runs-on: [kc-runner]
+    steps:
+      - name: Show kubectl version
+        run: kubectl version --client=true || true
+
+      - name: Select kube context (if provided)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ github.event.inputs.kube_context }}" ]]; then
+            kubectl config use-context "${{ github.event.inputs.kube_context }}"
+          fi
+
+      - name: Scale to 0
+        shell: bash
+        run: |
+          set -euo pipefail
+          NS_FLAG=""
+          if [[ -n "${{ github.event.inputs.namespace }}" ]]; then
+            NS_FLAG="-n ${{ github.event.inputs.namespace }}"
+          fi
+          kubectl scale deployment/${{ github.event.inputs.deployment }} --replicas=0 ${NS_FLAG}
+
+          # Wait until desired replicas reach 0
+          for i in {1..30}; do
+            READY="$(kubectl get deploy/${{ github.event.inputs.deployment }} ${NS_FLAG} -o jsonpath='{.status.replicas}')"
+            READY="${READY:-0}"
+            if [[ "$READY" == "0" ]]; then
+              echo "Scaled down to 0."
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Scale to 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          NS_FLAG=""
+          if [[ -n "${{ github.event.inputs.namespace }}" ]]; then
+            NS_FLAG="-n ${{ github.event.inputs.namespace }}"
+          fi
+          kubectl scale deployment/${{ github.event.inputs.deployment }} --replicas=1 ${NS_FLAG}
+          kubectl rollout status deployment/${{ github.event.inputs.deployment }} ${NS_FLAG} --timeout=180s
